@@ -36,28 +36,62 @@ def distance(a,b):
 #
 #  
 def kmeans(data_points, num_clusters, termination_tol, max_iter):
-    centroids = rd.sample(data_points, num_clusters)
-    cluster_assignments = [0] * len(data_points)
+    # 1) Random initialization of centroids.
+    #    We'll pick 'num_clusters' random rows from the dataset.
+    data_points = pd.DataFrame(data_points_list, columns=['x', 'y'])
+    centroids = data_points.sample(n=num_clusters, random_state=None).reset_index(drop=True)
 
-    for iteration in range(max_iter):
-        for i, point in enumerate(data_points):
-            distances = [distance(point, centroid) for centroid in centroids]
-            cluster_assignments[i] = distances.index(min(distances))
-        
+    # To avoid modifying the original dataframe passed in,
+    # make a copy and add a column called 'cluster'.
+    data_points = data_points.copy()
+    data_points['cluster'] = -1
+
+    old_total_dist = float('inf')
+
+    for _ in range(max_iter):
+        # 2) Assign each data point to its closest centroid.
+        for idx, point in data_points.iterrows():
+            distances = []
+            for c_idx in range(num_clusters):
+                dist = distance((point['x'], point['y']),
+                                (centroids.loc[c_idx, 'x'], centroids.loc[c_idx, 'y']))
+                distances.append(dist)
+            data_points.loc[idx, 'cluster'] = np.argmin(distances)
+
+        # 3) Calculate new centroids as the mean of the points in each cluster.
         new_centroids = []
-        for cluster_idx in range(num_clusters):
-            cluster_points = [data_points[i] for i in range(len(data_points)) if cluster_assignments[i] == cluster_idx]
-            if cluster_points:
-                new_centroid = [sum(dim) / len(cluster_points) for dim in zip(*cluster_points)]
-                new_centroids.append(new_centroid)
+        for c_idx in range(num_clusters):
+            cluster_points = data_points[data_points['cluster'] == c_idx]
+            if len(cluster_points) > 0:
+                mean_x = cluster_points['x'].mean()
+                mean_y = cluster_points['y'].mean()
             else:
-                new_centroids.append(rd.choice(data_points))
-        centroid_shifts = [distance(new_centroids[i], centroids[i]) for i in range(num_clusters)]
-        if max(centroid_shifts) < termination_tol:
-            print(f"Coverged after {iteration + 1} iterations.")
+                # If no points are assigned to a cluster, reinitialize that centroid randomly.
+                random_point = data_points.sample(n=1)
+                mean_x = random_point['x'].values[0]
+                mean_y = random_point['y'].values[0]
+            new_centroids.append([mean_x, mean_y])
+
+        # Convert new centroids list to a DataFrame.
+        new_centroids_df = pd.DataFrame(new_centroids, columns=['x','y'])
+
+        # 4) Calculate total distance from points to their assigned cluster centroids.
+        total_dist = 0.0
+        for idx, point in data_points.iterrows():
+            c_idx = int(point['cluster'])
+            centroid = new_centroids_df.loc[c_idx]
+            total_dist += distance((point['x'], point['y']), (centroid['x'], centroid['y']))
+
+        # 5) Check termination condition.
+        if abs(old_total_dist - total_dist) < termination_tol:
+            centroids = new_centroids_df
             break
-        centroids = new_centroids
-    return centroids, cluster_assignments
+
+        centroids = new_centroids_df
+        old_total_dist = total_dist
+
+    # Return final centroids, labeled data, and total distance.
+    return centroids, data_points, total_dist
 
 
 
