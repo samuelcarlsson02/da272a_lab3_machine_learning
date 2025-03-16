@@ -118,31 +118,22 @@ class Node:
         
     # Method is used to expand a node when constucting the decision tree  
     def split(self):
-        """
-        This method implements the ID3 logic to turn the current Node
-        into either a leaf node, or a non-leaf node with children.
-        """
-
-        # 1. If all target values are the same, make it a leaf.
+        
         if len(self.target_column[self.target_name].unique()) == 1:
             self.class_name = str(self.target_column[self.target_name].unique()[0])
             return
 
-        # 2. If we have reached the maximum height, or no features left, make it a leaf.
         if self.height >= self.max_height or len(self.input_names) == 0:
             dominating_class = Utils.find_dominating_class(self.target_column)
             self.class_name = str(dominating_class)
             return
         
-        # 3. Otherwise, find the best attribute to split on using information gain.
         best_attribute = None
         best_info_gain = -1
         
         current_entropy = Utils.entropy(self.target_column)
         
-        # Loop through each attribute/feature to compute info gain
         for attribute in self.input_names:
-            # For each possible value in this attribute, find the entropy
             unique_values = self.input_columns[attribute].unique()
             
             conditional_entropy = 0.0
@@ -158,21 +149,17 @@ class Node:
                 best_info_gain = info_gain
                 best_attribute = attribute
         
-        # Check if info_gain was actually improved; if not, stop splitting.
         if best_attribute is None or best_info_gain <= 0:
             dominating_class = Utils.find_dominating_class(self.target_column)
             self.class_name = str(dominating_class)
             return
         
-        # 4. Set this node's split variable
         self.split_variable = best_attribute
         
-        # 5. For each value of the chosen attribute, generate a child node
         unique_values = self.input_columns[best_attribute].unique()
         for val in unique_values:
             subset_indices = self.input_columns[self.input_columns[best_attribute] == val].index
             
-            # Create the child node's input_columns and target_column
             child_input_columns = self.input_columns.loc[subset_indices].drop([best_attribute], axis=1)
             child_target_column = self.target_column.loc[subset_indices]
             
@@ -184,8 +171,7 @@ class Node:
                 parent=self,
                 parent_split_value=val
             )
-            
-            # Recursively split the child node
+
             child_node.split()
             self.children[val] = child_node
 
